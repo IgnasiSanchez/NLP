@@ -1,5 +1,6 @@
 from skseq.sequences.id_feature import IDFeatures
 from skseq.sequences.id_feature import UnicodeFeatures
+import re
 
 # ----------
 # Feature Class
@@ -27,58 +28,94 @@ class ExtendedFeatures(IDFeatures):
         if feat_id != -1:
             features.append(feat_id)
 
-        if str.istitle(word):
-            # Generate feature name.
-            feat_name = "uppercased::%s" % y_name
-            # Get feature ID from name.
+
+
+        # Suffix demonyms
+        demonym_suffix = ['an', 'ian', 'ine', 'ite', 'er', 'eno', 'ish', 'ese', 'i', 'ic', 'iote']
+        check_suffix = list(filter(word.endswith, demonym_suffix)) != [] #check whether the word ends with some suffix
+        if check_suffix == True:
+            select_suffix = [x for x in demonym_suffix if word.endswith(x)]
+            if len(select_suffix) == 2:
+                select_suffix = ['ian']
+
+            feat_name = "suffix:%s::%s" % (select_suffix[0], y_name)
             feat_id = self.add_feature(feat_name)
-            # Append feature.
             if feat_id != -1:
                 features.append(feat_id)
 
-        if str.isdigit(word):
-            # Generate feature name.
-            feat_name = "number::%s" % y_name
-            # Get feature ID from name.
-            feat_id = self.add_feature(feat_name)
-            # Append feature.
+
+        #First letter is uppercase
+        if word[0].isupper():
+            feat_name = "capitalized:%s" % (y_name) #generate feature name
+            feat_id = self.add_feature(feat_name) #get feature ID from name
             if feat_id != -1:
                 features.append(feat_id)
 
-        if str.find(word, "-") != -1:
-            # Generate feature name.
-            feat_name = "hyphen::%s" % y_name
-            # Get feature ID from name.
+
+        #All letters of the word are uppercase
+        if word.isupper():
+            feat_name = "uppercase:%s" % (y_name)
             feat_id = self.add_feature(feat_name)
-            # Append feature.
             if feat_id != -1:
                 features.append(feat_id)
 
-        # Suffixes
-        max_suffix = 3
-        for i in range(max_suffix):
-            if len(word) > i+1:
-                suffix = word[-(i+1):]
-                # Generate feature name.
-                feat_name = "suffix:%s::%s" % (suffix, y_name)
-                # Get feature ID from name.
-                feat_id = self.add_feature(feat_name)
-                # Append feature.
-                if feat_id != -1:
-                    features.append(feat_id)
 
-        # Prefixes
-        max_prefix = 3
-        for i in range(max_prefix):
-            if len(word) > i+1:
-                prefix = word[:i+1]
-                # Generate feature name.
-                feat_name = "prefix:%s::%s" % (prefix, y_name)
-                # Get feature ID from name.
-                feat_id = self.add_feature(feat_name)
-                # Append feature.
-                if feat_id != -1:
-                    features.append(feat_id)
+        #The word has points or hyphens
+        regex = re.compile('[-|\.]')
+        check = regex.search(word) == None
+        if check == False:
+            feat_name = "PuncSign:%s" % (y_name)
+            feat_id = self.add_feature(feat_name)
+            if feat_id != -1:
+                features.append(feat_id)
+
+
+        #The string is all numeric
+        if word.isnumeric():
+            feat_name = "Numeric:%s::%s" % (len(word),y_name)
+            feat_id = self.add_feature(feat_name)
+            if feat_id != -1:
+                features.append(feat_id)
+
+
+        #The string has letters AND numbers
+        letters = bool(re.search('[a-zA-Z]', word))
+        numbers = any(char.isdigit() for char in word)
+        if letters and numbers:
+            feat_name = "LettersNumbers:%s" % (y_name)
+            feat_id = self.add_feature(feat_name)
+            if feat_id != -1:
+                features.append(feat_id)
+
+        #Key words
+        events = ['game', 'olympic', 'war', 'summer', 'winter']
+        time = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        key_words = events + time
+
+        word_lowercase = word.lower()
+        select_key_word = [x for x in key_words if x in word_lowercase]
+        #check whether the word contains any keyword
+        if select_key_word != []:
+            feat_name = "KeyWord:%s::%s" % (select_key_word[0], y_name)
+            feat_id = self.add_feature(feat_name)
+            if feat_id != -1:
+                features.append(feat_id) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         return features
 

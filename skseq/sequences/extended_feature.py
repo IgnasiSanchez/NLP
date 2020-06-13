@@ -60,11 +60,21 @@ class ExtendedFeatures(IDFeatures):
                 features.append(feat_id)
 
 
-        #The word has points or hyphens
-        regex = re.compile('[-|\.]')
+        #The word has dots
+        regex = re.compile('[\.]')
         check = regex.search(word) == None
         if check == False:
-            feat_name = "PuncSign:%s" % (y_name)
+            feat_name = "Dot:%s" % (y_name)
+            feat_id = self.add_feature(feat_name)
+            if feat_id != -1:
+                features.append(feat_id)
+
+
+        #The word has hyphens
+        regex = re.compile('[-]')
+        check = regex.search(word) == None
+        if check == False:
+            feat_name = "Hyphen:%s" % (y_name)
             feat_id = self.add_feature(feat_name)
             if feat_id != -1:
                 features.append(feat_id)
@@ -99,7 +109,7 @@ class ExtendedFeatures(IDFeatures):
             feat_name = "KeyWord:%s::%s" % (select_key_word[0], y_name)
             feat_id = self.add_feature(feat_name)
             if feat_id != -1:
-                features.append(feat_id) 
+                features.append(feat_id)
 
 
 

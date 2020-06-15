@@ -97,7 +97,15 @@ class ExtendedFeatures(IDFeatures):
             if feat_id != -1:
                 features.append(feat_id)
 
-        
+        #The word ends with -day:
+        if word.endswith('day'):
+            feat_name = "DaysWeek:%s" % (y_name)
+            feat_id = self.add_feature(feat_name)
+            if feat_id != -1:
+                features.append(feat_id)
+
+
+
 
         return features
 

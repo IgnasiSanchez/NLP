@@ -97,35 +97,7 @@ class ExtendedFeatures(IDFeatures):
             if feat_id != -1:
                 features.append(feat_id)
 
-        #Key words
-        events = ['game', 'olympic', 'war', 'summer', 'winter']
-        time = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        key_words = events + time
-
-        word_lowercase = word.lower()
-        select_key_word = [x for x in key_words if x in word_lowercase]
-        #check whether the word contains any keyword
-        if select_key_word != []:
-            feat_name = "KeyWord:%s::%s" % (select_key_word[0], y_name)
-            feat_id = self.add_feature(feat_name)
-            if feat_id != -1:
-                features.append(feat_id)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        
 
         return features
 

@@ -53,7 +53,7 @@ cdef class Spelling_Correction_c:
     cdef int c_ins
     cdef int c_del
     cdef int c_rep
-    cdef list words
+    cpdef list words
     cdef int tol
     cdef tuple tree
     def __init__(self, list words,int tol,int  c_ins=1,int c_del=1, int c_rep=1):
@@ -71,6 +71,9 @@ cdef class Spelling_Correction_c:
         #Add words to tree
         for i in it:
             self._add_word(self.tree, i)
+    
+    cpdef list get_words(self):
+        return self.words
     
     cdef int editDistance(self,str str1, str str2):
         '''
@@ -172,6 +175,7 @@ cdef class Spelling_Correction_c:
         results = []
         if dist_to_node <= self.tol: #If the parent word has a distance within the tolerance, we append it to results
             results.append((dist_to_node, node_word))
+            return results
         
         #We inspect all the words with distance in [d(parent,word) - tol, d(parent,word)+tol]
         for i in range(int(dist_to_node-self.tol), int(dist_to_node+self.tol+1)):
@@ -226,7 +230,7 @@ cdef class Spelling_Correction_c:
                 correction.append(w)
             else:
                 w_lem = lemmatizer.lemmatize(w.lower(),'v') #Get the root of the word
-                if w_lem in self.words: #If the root of the word is in our dict, we leave it that way
+                if w_lem in self.words: #If the word is in our dict, we leave it that way
                     correction.append(w)
                 else:
                     if w.isupper(): #If the word is all in caps, and it has more than one letter

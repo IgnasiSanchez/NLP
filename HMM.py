@@ -40,7 +40,7 @@ def logsum_pair(logx, logy):
         return logy + np.log1p(np.exp(logx-logy))
 
 
-def logsum(logv):
+def logsumexp(logv):
     """
     Return log(v[0]+v[1]+...), avoiding arithmetic underflow/overflow.
     """
@@ -48,6 +48,7 @@ def logsum(logv):
     for val in logv:
         res = logsum_pair(res, val)
     return res
+
 
 class HMM(object):
     
@@ -58,6 +59,7 @@ class HMM(object):
         self.scores = {"emission": None, "transition":None, "final":None, "initial":None}
         self.decode = set(["posterior", "viterbi"])
         self.word_to_pos  = word_to_pos
+        self.word_to_pos['UnknownWord']  = max(self.word_to_pos.values()) + 1 # We add this value for unknown words
         self.state_to_pos = state_to_pos
         self.pos_to_word  = {v: k for k, v in word_to_pos.items()}
         self.pos_to_state = {v: k for k, v in state_to_pos.items()}
@@ -66,7 +68,7 @@ class HMM(object):
         self.n_words      = len(word_to_pos)
         self.fitted = False
 
-    def fit(self, observation_lables: list, state_labels: list):
+    def fit(self, observation_labels: list, state_labels: list):
         """
         Computes and saves: counts, probs, scores.
         """
@@ -74,7 +76,7 @@ class HMM(object):
             print("Error state_to_pos or word_to_pos needed to be defined")
             return
             
-        self.counts = self.sufficient_statistics_hmm(observation_lables, state_labels)       
+        self.counts = self.sufficient_statistics_hmm(observation_labels, state_labels)       
         self.probs  = self.compute_probs(self.counts)  
         self.scores = self.compute_scores(self.probs)  
         self.fitted = True
@@ -82,20 +84,33 @@ class HMM(object):
     def sufficient_statistics_hmm(self, observation_lables, state_labels):
 
         state_to_pos, word_to_pos = self.state_to_pos, self.word_to_pos
-        
         def update_initial_counts(initial_counts, seq_y, state_to_pos):    
-            initial_counts[state_to_pos[seq_y[0]]] += 1
+            # seq-> sequence: w1/t1 w2/t2 w3/t3...
+            initial_state = seq_y[0] # Get the initial state
+            index = state_to_pos[initial_state] # Transform it to an integer
+            initial_counts[index]+=1 # Add 1 to the initial counts in the corresponding index
+
 
         def update_transition_counts(transition_counts, seq_y, state_to_pos):
-            for (t_prev, t) in zip(seq_y[:-1], seq_y[1:]):
-                transition_counts[state_to_pos[t], state_to_pos[t_prev]] += 1
+
+            for i in range(1,len(seq_y)): # For every pair of states (y_i, y_{i-1})
+                pos_i = state_to_pos[seq_y[i]] # Increment transition_probs at the indices
+                pos_j = state_to_pos[seq_y[i-1]] # of the states y_i and y_{i-1}
+                transition_counts[pos_i,pos_j]+=1
+
 
         def update_emission_counts(emission_counts, seq_x, seq_y, state_to_pos, word_to_pos):
-            for (t,w) in zip(seq_y, seq_x):
-                emission_counts[state_to_pos[t], word_to_pos[w]] += 1
+            for i in range(len(seq_y)): # For every pair of word-states (x_i, y_i)
+                pos_i = word_to_pos[seq_x[i]] # Increment transition_probs at the indices
+                pos_j = state_to_pos[seq_y[i]] # of the word x_i and state y_i
+                emission_counts[pos_j,pos_i]+=1
+
+
 
         def update_final_counts(final_counts, seq_y, state_to_pos):
-            final_counts[state_to_pos[seq_y[-1]]] += 1
+            final_state = seq_y[-1] # Get the initial state
+            index = state_to_pos[final_state] # Transform it to an integer
+            final_counts[index]+=1 # Add 1 to the initial counts in the corresponding index
 
 
         n_states = len(state_to_pos)
@@ -127,6 +142,7 @@ class HMM(object):
         transition_probs = transition_counts/(np.sum(transition_counts,0) + final_counts)
         final_probs      = final_counts/(np.sum(transition_counts, 0) + final_counts )
         emission_probs   = (emission_counts.T / np.sum(emission_counts, 1)).T
+        emission_probs[:,self.word_to_pos['UnknownWord']] = 0.0000001
     
         return {"emission":   emission_probs, 
                 "transition": transition_probs,
@@ -164,16 +180,19 @@ class HMM(object):
         n_x = len(x)
         
         # log_f_x initialized to -Inf because log(0) = -Inf
-        log_f_x = np.zeros((self.n_states, n_x)) - np.Inf
-        x_emission_scores = np.array([self.scores['emission'][:, self.word_to_pos[w]] for w in x]).T
+        log_f_x = np.zeros((self.n_states, n_x)) + logzero()
+        x_emission_scores = np.array([self.scores['emission'][:, self.word_to_pos[w] if w in list(self.word_to_pos.keys()) else self.word_to_pos['UnknownWord']] for w in x]).T
         
         log_f_x[:,0] = x_emission_scores[:, 0] + self.scores['initial']
-        for n in range(1, n_x):
-            for s in range(self.n_states):
-                log_f_x[s,n] = logsum(log_f_x[:,n-1] + self.scores['transition'][s,:] + x_emission_scores[s,n])
         
-        log_likelihood = logsum(log_f_x[:,n_x-1] + self.scores['final'])
+        for i in range(1,n_x):
+            for s in range(self.n_states):
+                log_f_x[s,i] = logsumexp(self.scores['transition'][s,:] + 
+                                         log_f_x[:,i-1]) + x_emission_scores[s, i]
 
+        
+        log_likelihood = logsumexp(self.scores['final'] + log_f_x[:,-1])
+        
         return log_f_x, log_likelihood
     
     
@@ -181,14 +200,17 @@ class HMM(object):
         n_x = len(x)
         
         # log_f_x initialized to -Inf because log(0) = -Inf
-        log_b_x = np.zeros((self.n_states, n_x)) - np.Inf
-        x_emission_scores = np.array([self.scores['emission'][:, self.word_to_pos[w]] for w in x]).T
+        log_b_x = np.zeros((self.n_states, n_x)) + logzero()
+        x_emission_scores = np.array([self.scores['emission'][:, self.word_to_pos[w] if w in list(self.word_to_pos.keys()) else self.word_to_pos['UnknownWord']] for w in x]).T
         log_b_x[:,-1] = self.scores['final']
-        for n in range(n_x-2, 0, -1):
+
+        for i in range(n_x-2,-1,-1):
             for s in range(self.n_states):
-                log_b_x[s,n] = logsum(log_b_x[:,n+1] + self.scores['transition'][:,s] + x_emission_scores[:,n+1])
+                log_b_x[s,i] = logsumexp(self.scores['transition'][:,s] +
+                                        log_b_x[:,i+1] + x_emission_scores[:,i+1])
         
-        log_likelihood = logsum(log_b_x[:,1] + self.scores['initial'])
+        log_likelihood = logsumexp(x_emission_scores[:, 0] + self.scores['initial']+
+                                   log_b_x[:,0])
         
         return log_b_x, log_likelihood
         
@@ -208,6 +230,7 @@ class HMM(object):
     def compute_state_posteriors(self, x:list):
         log_f_x, log_likelihood = self.log_forward_computations(x)
         log_b_x, log_likelihood = self.log_backward_computations(x)
+
         state_posteriors = np.zeros((self.n_states, len(x)))
         
         for pos in range(len(x)):
